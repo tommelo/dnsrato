@@ -111,7 +111,7 @@ The **xml format** will produce the follwing result:
 ```
 
 ### -o, --output
-The enumeration result can be saved to a file. The default output argument is the standard output
+The enumeration result can be saved to a file. The default output is the standard output(sys.stdout).
 
 
 Running the script with the output file argument:
