@@ -13,8 +13,8 @@ The C version can be found at: https://github.com/ricardolongatto/dnsrato
 
 ## Installation
 ```shell
-git clone https://github.com/tommelo/dnsrato.git
-pip install -r requirements.txt
+git clone https://github.com/tommelo/dnsrato
+cd dnsrato && sudo pip install -r requirements.txt
 ```
 
 ## Dependencies
