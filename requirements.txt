@@ -1,0 +1,6 @@
+socks5
+futures
+colorama
+tqdm
+tld
+dicttoxml
