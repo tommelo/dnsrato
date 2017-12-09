@@ -4,3 +4,4 @@ colorama
 tqdm
 tld
 dicttoxml
+python-whois
