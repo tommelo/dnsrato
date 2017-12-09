@@ -44,24 +44,27 @@ import logging
 import random
 import json
 from concurrent.futures import ThreadPoolExecutor
-from collections import namedtuple
 from mmap import mmap
 from xml.dom.minidom import parseString
+from collections import namedtuple
 from colorama import Fore
 from colorama import init
 from tqdm import tqdm
 from tld import get_tld
 from tld.exceptions import TldDomainNotFound, TldBadUrl, TldIOError
 from dicttoxml import dicttoxml
+from whois import whois
 
 logging.basicConfig(format="%(message)s")
 log = logging.getLogger("dnsrato")
 
 DNSLookupParams = namedtuple("DNSLookupParams", "tld preffix port use_ssl sleep timeout progress")
+DNSEnumResult = namedtuple('DNSEnumResult', 'tld subdomains whois_record out_format out_file')
 subdomains = []
+whois_record = dict()
 
 init(autoreset=True)
-VERSION = "v1.0.0"
+VERSION = "v1.1.0"
 BANNER = r"""
          ____
         |    |
@@ -77,11 +80,14 @@ BANNER = r"""
      |  /\/\/\   \           
      J /      `.__\\
      |/         /  \          dnsrato
-      \\      ."`.  `.     v1.0.0 [tommelo] ."
+      \\      ."`.  `.     v1.1.0 [tommelo] ."
     ____)_/\_(____`.  `-._________________."/
    (___._/  \_.___) `-.__________________.-"
 """
 
+LOG_FORMAT = '[+] {0:17}{1}'
+TEXT_OUTPUT_FORMAT = "Domain: {}\nWhois Lookup\n{}\nSubdomain Lookup\n{}"
+UNDERLINED_FORMAT = '\033[4m{}\033[0m'
 SUPPORTED_FORMATS = ('xml', 'json', 'text')
 USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36",
@@ -113,7 +119,7 @@ USER_AGENTS = [
 
 parser = argparse.ArgumentParser(
     prog="dnsrato",
-    usage="dnsrato -d --domain [-h --help] [--version] [-options]")
+    usage="dnsrato <options>")
 parser.add_argument("-d", "--domain", metavar="", required=True, help="the domain url")
 parser.add_argument("-D", "--dictionary", metavar="", help="the dictionary file")
 parser.add_argument("-f", "--format", metavar="", help="the output format(text, json or xml)")
@@ -265,7 +271,7 @@ def dns_lookup(config):
         sock.close()
 
         if not is_piped_output() and log.isEnabledFor(logging.DEBUG):
-            config.progress.write("[+] Subdomain found: {}".format(Fore.GREEN + subdomain))
+            config.progress.write(LOG_FORMAT.format('Found:', Fore.GREEN + subdomain))
 
         subdomains.append(subdomain)
     except socket.error:
@@ -275,7 +281,35 @@ def dns_lookup(config):
     if config.sleep > 0:
         time.sleep(config.sleep)
 
-def flush_output(tld, result, out_format, out_file):
+def whois_lookup(domain):
+    """
+    Performs a whois lookup.
+
+    Parameters
+    -------
+    domain: str
+        The domain
+    """
+    try:
+        result = whois(domain)
+    except socket.error:
+        log.info(Fore.YELLOW + '[!] Unable to perform a whois lookup' + Fore.RESET)
+
+    attrs = result._regex or vars(result).get('_regex')
+    for attr in attrs:
+        value = result.__getattr__(attr)
+        if isinstance(value, list):
+            whois_record[attr] = []
+            log.info('[+] ' + attr + ':')
+            for item in value:
+                item = item.encode('utf-8')
+                whois_record[attr].append(item)
+                log.info(LOG_FORMAT.format('', item))
+        else:
+            whois_record[attr] = value
+            log.info(LOG_FORMAT.format(attr + ':', value))
+
+def flush_output(result):
     """
     Flushes the result to the output.
 
@@ -284,21 +318,19 @@ def flush_output(tld, result, out_format, out_file):
 
     Parameters
     -------
-    tld: str
-        The top level domain
-    result: list
-        The subdomains list
-    out_format: str
-        The output format: json, xml or text
-    out_file: str
-        The output file
+    result: DNSEnumResult
+        The enumeration result
     """
 
     # outputs the result in text format
-    if out_format == "text":
-        out = "\n".join(result)
-        if out_file:
-            with open(out_file, "w") as outfile:
+    if result.out_format == "text":
+        out = TEXT_OUTPUT_FORMAT.format(
+            result.tld,
+            "\n".join(['%s: %s' % (key, value) for (key, value) in result.whois_record.items()]),
+            "\n".join(result.subdomains))
+
+        if result.out_file:
+            with open(result.out_file, "w") as outfile:
                 outfile.write(out)
 
         if is_piped_output():
@@ -306,10 +338,10 @@ def flush_output(tld, result, out_format, out_file):
             sys.stdout.flush()
 
     # outputs the result in json format
-    if out_format == "json":
-        out = {"tld": tld, "subdomains": result}
-        if out_file:
-            with open(out_file, "w") as outfile:
+    if result.out_format == "json":
+        out = {"domain": result.tld, "subdomains": result.subdomains, "whois": result.whois_record}
+        if result.out_file:
+            with open(result.out_file, "w") as outfile:
                 json.dump(out, outfile, indent=2, sort_keys=True)
 
         if is_piped_output():
@@ -317,13 +349,12 @@ def flush_output(tld, result, out_format, out_file):
             sys.stdout.flush()
 
     # outputs the result in xml format
-    if out_format == "xml":
-        out = {"tld": tld, "subdomains": result}
-        item_func = lambda x: "subdomain"
-        xml = dicttoxml(out, custom_root="dns", item_func=item_func, attr_type=False)
+    if result.out_format == "xml":
+        out = {"domain": result.tld, "subdomains": result.subdomains, "whois": result.whois_record}
+        xml = dicttoxml(out, custom_root="dns", attr_type=False)
         dom = parseString(xml)
-        if out_file:
-            with open(out_file, "w") as outfile:
+        if result.out_file:
+            with open(result.out_file, "w") as outfile:
                 outfile.write(dom.toprettyxml())
 
         if is_piped_output():
@@ -332,7 +363,7 @@ def flush_output(tld, result, out_format, out_file):
 
 def execute(args):
     """
-    Executes a DNS lookup brute force attack.
+    Executes a DNS lookup.
 
     Parameters
     -------
@@ -352,9 +383,6 @@ def execute(args):
         log.info(Fore.RED + "[!] Invalid format option: {}".format(args.format))
         sys.exit(1)
 
-    log.info(BANNER)
-    log.info("[+] TLD resolved as: {}".format(top_level_domain))
-
     if args.proxy:
         try:
             import socks
@@ -368,12 +396,20 @@ def execute(args):
         log.info(Fore.RED + "[!] Unable to connect to host: {}".format(top_level_domain))
         sys.exit(1)
 
-    log.info("[+] Host status: {}".format(Fore.GREEN + "UP"))
-
     if not os.path.isfile(args.dictionary):
         log.info(Fore.RED + "[!] File {} not found".format(args.dictionary))
         sys.exit(1)
 
+    log.info(BANNER)
+    log.info(LOG_FORMAT.format('Domain:', top_level_domain))
+    log.info(LOG_FORMAT.format('Host status:', Fore.GREEN + "UP" + Fore.RESET))
+    log.info('[*]')
+    log.info('[+] ' + UNDERLINED_FORMAT.format('Whois Lookup'))
+
+    whois_lookup(top_level_domain)
+
+    log.info('[*]')
+    log.info('[+] ' + UNDERLINED_FORMAT.format('Subdomain Lookup'))
     pool = ThreadPoolExecutor(max_workers=args.workers)
     with open(args.dictionary, "r+") as dictionary_file:
         lines = file_lines(dictionary_file)
@@ -390,8 +426,23 @@ def execute(args):
             pool.submit(dns_lookup, params)
 
     pool.shutdown(wait=True)
+
+    if not is_piped_output() and log.isEnabledFor(logging.DEBUG):
+        progress_bar.write("[*]")
+        progress_bar.write("[+] Enumeration process finished")
+        progress_bar.write("[+] Flushing the output")
+        progress_bar.write("[+] Bye")
+        progress_bar.write("")
+
+    result = DNSEnumResult(
+        tld=top_level_domain,
+        subdomains=subdomains,
+        whois_record=whois_record,
+        out_format=args.format,
+        out_file=args.output)
+
     progress_bar.close()
-    flush_output(top_level_domain, subdomains, args.format, args.output)
+    flush_output(result)
     sys.exit()
 
 if __name__ == "__main__":
@@ -417,8 +468,15 @@ if __name__ == "__main__":
 
         execute(cli_args)
     except KeyboardInterrupt:
-        log.info("[+] User requested to stop")
-        log.info("[+] Sending the current result to the output")
+        log.info("\n[+] User requested to stop")
+        log.info("[+] Flushing the output")
         domain_arg = get_tld(cli_args.domain, fix_protocol=True)
-        flush_output(domain_arg, subdomains, cli_args.format, cli_args.output)
+        current = DNSEnumResult(
+            tld=domain_arg,
+            subdomains=subdomains,
+            whois_record=whois_record,
+            out_format=cli_args.format,
+            out_file=cli_args.output)
+        flush_output(current)
+        log.info("[+] Bye")
         os._exit(0)
