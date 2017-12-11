@@ -1,7 +1,7 @@
 # dnsrato
 A DNS reconnaissance tool
 
-![dnsrato](running.gif)
+![](https://media.giphy.com/media/xT0xelEsadw9RPhOJa/source.gif)
 
 ## About
 dnsrato is a DNS reconnaissance tool that performs a brute force
