@@ -7,7 +7,7 @@ A DNS reconnaissance tool
 **dnsrato** is a DNS reconnaissance tool that performs tasks such as:
 
 * Whois Lookup;
-* Sub-domain enumerationa(brute force) based on a word list file.
+* Sub-domain enumeration(brute force) based on a word list file.
 
 This is a Python version(with some extra features) of the first version
 written in C by Ricardo Longatto.
