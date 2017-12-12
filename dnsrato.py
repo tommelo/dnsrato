@@ -64,7 +64,7 @@ subdomains = []
 whois_record = dict()
 
 init(autoreset=True)
-VERSION = "v1.1.0"
+VERSION = "v1.1.1"
 BANNER = r"""
          ____
         |    |
@@ -80,7 +80,7 @@ BANNER = r"""
      |  /\/\/\   \           
      J /      `.__\\
      |/         /  \          dnsrato
-      \\      ."`.  `.     v1.1.0 [tommelo] ."
+      \\      ."`.  `.     v1.1.1 [tommelo] ."
     ____)_/\_(____`.  `-._________________."/
    (___._/  \_.___) `-.__________________.-"
 """
@@ -302,7 +302,7 @@ def whois_lookup(domain):
             whois_record[attr] = []
             log.info('[+] ' + attr + ':')
             for item in value:
-                item = item.encode('utf-8')
+                item = unicode(item).encode('utf-8')
                 whois_record[attr].append(item)
                 log.info(LOG_FORMAT.format('', item))
         else:
