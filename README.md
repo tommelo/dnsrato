@@ -4,8 +4,10 @@ A DNS reconnaissance tool
 ![](https://media.giphy.com/media/xT0xelEsadw9RPhOJa/source.gif)
 
 ## About
-dnsrato is a DNS reconnaissance tool that performs a brute force
-sub-domain enumeration based on a word list file.
+**dnsrato** is a DNS reconnaissance tool that performs tasks such as:
+
+* Whois Lookup;
+* Sub-domain enumerationa(brute force) based on a word list file.
 
 This is a Python version(with some extra features) of the first version
 written in C by Ricardo Longatto.
@@ -25,6 +27,7 @@ cd dnsrato && sudo pip install -r requirements.txt
 * [socks5](https://pypi.python.org/pypi/socks5)
 * [tqdm](https://pypi.python.org/pypi/tqdm)
 * [tld](https://pypi.python.org/pypi/tld)
+* [python-whois](https://pypi.python.org/pypi/python-whois)
 
 
 ## Usage
@@ -82,14 +85,23 @@ python dnsrato.py -d domain.com -f json > enumeration.json
 
 The **text format** will produce the follwing result:
 ```
+Domain: domain.com
+Whois Lookup
+key: value
+...
+Subdomain Lookup
 subdomainone.domain.com
 subdomaintwo.domain.com
+...
 ```
 
 The **json format** will produce the follwing result:
 ```
 {
-  "tld": "domain.com",
+  "domain": "domain.com",
+  "whois": {
+    "key": "value"
+  }
   "subdomains": [
     "subdomainone.domain.com"
     "subdomaintwo.domain.com"
@@ -102,10 +114,17 @@ The **xml format** will produce the follwing result:
 ```
 <?xml version="1.0" ?>
 <dns>
-  <tld>domain.com</tld>
+  <domain>domain.com</domain>
+  <whois>
+    <key>value</key>
+    <key>
+      <item>value1</item>
+      <item>value2</item>
+    </key>
+  </whois>
   <subdomains>
-    <subdomain>subdomainone.domain.com</subdomain>
-    <subdomain>subdomaintwo.domain.com</subdomain>
+    <item>subdomainone.domain.com</item>
+    <item>subdomaintwo.domain.com</item>
   </subdomains>
 </dns>
 ```
