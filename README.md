@@ -1,5 +1,7 @@
 # dnsrato
-A DNS reconnaissance tool
+A DNS reconnaissance tool.
+
+![dnsrato](images/running.gif)
 
 ## About
 **dnsrato** is a DNS reconnaissance tool that performs tasks such as:
